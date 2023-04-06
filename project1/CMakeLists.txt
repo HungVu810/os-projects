@@ -11,8 +11,10 @@ target_include_directories(project1 PRIVATE include)
 target_compile_features(project1 PRIVATE cxx_std_20) # gcc version in ics environment is 11.3.0
 
 # Project tests
-add_executable(tests ${TESTS})
+add_executable(project1Tests ${TESTS})
+target_include_directories(project1Tests PRIVATE include)
+target_compile_features(project1Tests PRIVATE cxx_std_17) # at least 17 for structural binding
 find_package(Catch2 CONFIG REQUIRED) # Dependency
-target_link_libraries(tests PRIVATE Catch2::Catch2 Catch2::Catch2WithMain)
+target_link_libraries(project1Tests PRIVATE Catch2::Catch2 Catch2::Catch2WithMain)
 enable_testing()
-add_test(Tests tests)
+add_test(tests projectlTests)
