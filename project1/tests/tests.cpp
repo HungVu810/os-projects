@@ -1,6 +1,8 @@
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
+#include <iostream>
+
 #include "PCB.h"
 #include "RCB.h"
 #include "System.h"
@@ -38,17 +40,58 @@ TEST_CASE("RCB instantiation")
 	REQUIRE(rcb.waitList.empty());
 }
 
-TEST_CASE("System instantiation")
+namespace singleton
 {
-	const auto system = System::getInstance();
-	REQUIRE(System::isInstantiated);
+	auto system = System::getInstance();
+	auto shell = Shell::getInstance();
 }
 
+// ============ SYSTEM ============
+TEST_CASE("System instantiation")
+{
+	REQUIRE(System::isInstantiated);
+}
+TEST_CASE("create() input")
+{
+	REQUIRE_NOTHROW(singleton::system.create({}));
+
+	REQUIRE_THROWS(singleton::system.create({"x"}));
+	REQUIRE_THROWS(singleton::system.create({"$"}));
+	REQUIRE_THROWS(singleton::system.create({"10"}));
+	REQUIRE_THROWS(singleton::system.create({"x $ 10"}));
+}
+TEST_CASE("destroy() input")
+{
+	REQUIRE_NOTHROW(singleton::system.destroy({"0"}));
+	REQUIRE_NOTHROW(singleton::system.destroy({std::to_string(NUM_PROCESS - 1)}));
+
+	REQUIRE_THROWS(singleton::system.destroy({}));
+	REQUIRE_THROWS(singleton::system.destroy({"-1"}));
+	REQUIRE_THROWS(singleton::system.destroy({std::to_string(NUM_PROCESS)}));
+	REQUIRE_THROWS(singleton::system.destroy({"x"}));
+	REQUIRE_THROWS(singleton::system.destroy({"$"}));
+	REQUIRE_THROWS(singleton::system.destroy({"x $"}));
+}
+TEST_CASE("request() input")
+{
+	REQUIRE_NOTHROW(singleton::system.request({"0"}));
+	REQUIRE_NOTHROW(singleton::system.request({std::to_string(NUM_RESOURCE - 1)}));
+
+	REQUIRE_THROWS(singleton::system.request({}));
+	REQUIRE_THROWS(singleton::system.request({"-1"}));
+	REQUIRE_THROWS(singleton::system.request({std::to_string(NUM_RESOURCE)}));
+	REQUIRE_THROWS(singleton::system.request({"x"}));
+	REQUIRE_THROWS(singleton::system.request({"$"}));
+	REQUIRE_THROWS(singleton::system.request({"x $"}));
+}
+// ============ SYSTEM ============
+
+// ============ SHELL ============
 TEST_CASE("Shell instantiation")
 {
-	const auto shell = Shell::getInstance();
 	REQUIRE(Shell::isInstantiated);
 }
+// ============ SHELL ============
 
 
 

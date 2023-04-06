@@ -3,8 +3,8 @@
 #include <vector>
 
 // These are used later on by RCB, System and Shell headers
-using ProcessIndex = int;
-using ResourceIndex = int;
+using ProcessIndex = uint32_t;
+using ResourceIndex = uint32_t;
 class System; // Forwarded declaration 
 using CommandFunction = std::function<void(System&, std::vector<std::string>)>;
 
@@ -16,7 +16,7 @@ struct PCB // Process
 
 	PCB() :
 	state{State::Ready}
-	, parent{-1}
+	, parent{std::numeric_limits<unsigned int>::max()}
 	, childs{}
 	, resources{}
 	, priority{0}

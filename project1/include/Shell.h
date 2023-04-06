@@ -35,8 +35,6 @@ class Shell // Singleton
 
 		static bool isInstantiated;
 
-		static const uint32_t maxArgs;
-
 	private:
 		Shell() : commandMap{getCommandMap()}{};
 
@@ -48,7 +46,7 @@ class Shell // Singleton
 		[[nodiscard]] std::string readCommand() const
 		{
 			auto command = std::string{};
-			std::cin >> command;
+			std::getline(std::cin, command);
 			return command;
 		}
 

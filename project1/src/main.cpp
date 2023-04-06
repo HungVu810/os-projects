@@ -27,20 +27,20 @@ namespace
 
 int main() // Accept arguments
 {
-	std::cout << "hello";
-	//while (true)
-	//{
-	//	try
-	//	{
-	//		auto system = System::getInstance();
-	//		auto shell = Shell::getInstance();
-	//		shell.run(system);
-	//	}
-	//	catch (const std::runtime_error& error)
-	//	{
-	//		std::cout << "* error\n";
-	//	}
-	//}
+	auto system = System::getInstance();
+	auto shell = Shell::getInstance();
+
+	while (true)
+	{
+		try
+		{
+			shell.run(system);
+		}
+		catch (const std::runtime_error& error)
+		{
+			std::cout << "* error\n";
+		}
+	}
 }
 
 
