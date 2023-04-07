@@ -3,6 +3,7 @@
 
 #include <iostream>
 
+#include "Predefined.h"
 #include "PCB.h"
 #include "RCB.h"
 #include "System.h"
@@ -26,8 +27,8 @@ namespace
 TEST_CASE("PCB instantiation")
 {
 	const auto pcb = PCB{};
-	REQUIRE(pcb.state == PCB::State::New);
-	REQUIRE(pcb.parent == std::numeric_limits<ProcessIndex>::max());
+	REQUIRE(pcb.state == PCB::State::Free);
+	REQUIRE(pcb.parent == std::nullopt);
 	REQUIRE(pcb.childs.empty());
 	REQUIRE(pcb.resources.empty());
 	REQUIRE(pcb.priority >= 0); REQUIRE(pcb.priority <= 2);
@@ -53,11 +54,17 @@ TEST_CASE("System instantiation")
 }
 TEST_CASE("create() input")
 {
-	for (int i = 0; i < NUM_PROCESS; i++) // Create max number of processes without destroy
+	for (int i = 0; i < ProcessID::MAX_EXCLUSIVE - 1; i++) // Only N - 1 processes can be create because process 0 is already running
 	{
 		REQUIRE_NOTHROW(singleton::system.create({}));
 	}
 	REQUIRE_THROWS(singleton::system.create({})); // Over limit
+	const auto processes = singleton::system.getProcesses();
+	const auto isReady = [](const PCB& process)
+	{
+		return process.state == PCB::State::Ready;
+	};
+	REQUIRE(std::ranges::all_of(processes, isReady));
 
 	REQUIRE_THROWS(singleton::system.create({"x"}));
 	REQUIRE_THROWS(singleton::system.create({"$"}));
@@ -67,11 +74,11 @@ TEST_CASE("create() input")
 TEST_CASE("destroy() input")
 {
 	REQUIRE_NOTHROW(singleton::system.destroy({"0"}));
-	REQUIRE_NOTHROW(singleton::system.destroy({std::to_string(NUM_PROCESS - 1)}));
+	REQUIRE_NOTHROW(singleton::system.destroy({std::to_string(ProcessID::MAX_EXCLUSIVE - 1)}));
 
 	REQUIRE_THROWS(singleton::system.destroy({}));
 	REQUIRE_THROWS(singleton::system.destroy({"-1"}));
-	REQUIRE_THROWS(singleton::system.destroy({std::to_string(NUM_PROCESS)}));
+	REQUIRE_THROWS(singleton::system.destroy({std::to_string(ProcessID::MAX_EXCLUSIVE)}));
 	REQUIRE_THROWS(singleton::system.destroy({"x"}));
 	REQUIRE_THROWS(singleton::system.destroy({"$"}));
 	REQUIRE_THROWS(singleton::system.destroy({"x $"}));
@@ -82,15 +89,15 @@ TEST_CASE("request() input")
 	// releashing the same resource
 	// destroy new process
 
-	for (int i = 0; i < NUM_RESOURCE; i++) // Create max number of resources without destroy
+	for (int i = 0; i < ResourceID::MAX_EXCLUSIVE; i++) // Create max number of resources without destroy
 	{
 		REQUIRE_NOTHROW(singleton::system.request({std::to_string(i)}));
 	}
-	REQUIRE_THROWS(singleton::system.request({std::to_string(NUM_RESOURCE)})); // Over limit
+	REQUIRE_THROWS(singleton::system.request({std::to_string(ResourceID::MAX_EXCLUSIVE)})); // Over limit
 
 	REQUIRE_THROWS(singleton::system.request({}));
 	REQUIRE_THROWS(singleton::system.request({"-1"}));
-	REQUIRE_THROWS(singleton::system.request({std::to_string(NUM_RESOURCE)}));
+	REQUIRE_THROWS(singleton::system.request({std::to_string(ResourceID::MAX_EXCLUSIVE)}));
 	REQUIRE_THROWS(singleton::system.request({"x"}));
 	REQUIRE_THROWS(singleton::system.request({"$"}));
 	REQUIRE_THROWS(singleton::system.request({"x $"}));
@@ -98,11 +105,11 @@ TEST_CASE("request() input")
 TEST_CASE("release() input")
 {
 	REQUIRE_NOTHROW(singleton::system.release({"0"}));
-	REQUIRE_NOTHROW(singleton::system.release({std::to_string(NUM_RESOURCE - 1)}));
+	REQUIRE_NOTHROW(singleton::system.release({std::to_string(ResourceID::MAX_EXCLUSIVE - 1)}));
 
 	REQUIRE_THROWS(singleton::system.release({}));
 	REQUIRE_THROWS(singleton::system.release({"-1"}));
-	REQUIRE_THROWS(singleton::system.release({std::to_string(NUM_RESOURCE)}));
+	REQUIRE_THROWS(singleton::system.release({std::to_string(ResourceID::MAX_EXCLUSIVE)}));
 	REQUIRE_THROWS(singleton::system.release({"x"}));
 	REQUIRE_THROWS(singleton::system.release({"$"}));
 	REQUIRE_THROWS(singleton::system.release({"x $"}));

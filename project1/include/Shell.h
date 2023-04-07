@@ -5,6 +5,8 @@
 #include <cassert>
 #include <iostream>
 
+using CommandFunction = std::function<void(System&, std::vector<std::string>)>;
+
 namespace
 {
 	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap() noexcept; // Forwarded declaration

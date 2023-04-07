@@ -1,15 +1,21 @@
 #pragma once
 
-#include <queue>
+#include <list>
+#include <cassert>
 
 struct RCB // Resource
 {
 	enum class State : uint8_t {Free, Allocated};
 
-	RCB() : state{State::Free}, waitList{}{};
+	RCB() :
+	state{State::Free}
+	, waitList{}
+	, id{}
+	{}
 
 	~RCB(){};
 
 	State state;
-	std::queue<ProcessIndex> waitList; // Blocked processes waiting for this resource
+	std::list<ProcessID> waitList; // Blocked processes waiting for this resource
+	ResourceID id;
 };

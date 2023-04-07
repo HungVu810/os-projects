@@ -1,32 +1,30 @@
 #pragma once
 
 #include <vector>
-
-// These are used later on by RCB, System and Shell headers
-using ProcessIndex = uint32_t;
-using ResourceIndex = uint32_t;
-class System; // Forwarded declaration 
-using CommandFunction = std::function<void(System&, std::vector<std::string>)>;
-
-struct RCB; // Forwarded declaration
+#include <cassert>
+#include <optional>
 
 struct PCB // Process
 {
-	enum class State : uint8_t {New, Ready, Running, Blocked};
+	enum class State : uint8_t {Free, Ready, Running, Blocked};
 
 	PCB() :
-	state{State::New}
-	, parent{std::numeric_limits<ProcessIndex>::max()}
+	state{State::Free}
+	, parent{std::nullopt}
 	, childs{}
 	, resources{}
 	, priority{0}
+	, id{}
 	{}
 
 	~PCB(){} 
 
 	State state;
-	ProcessIndex parent;
-	std::vector<ProcessIndex> childs;
-	std::vector<ResourceIndex> resources;
-	uint8_t priority; // TODO: Priority is [0, 2]
+	std::optional<ProcessID> parent;
+	std::vector<ProcessID> childs;
+	std::vector<ResourceID> resources;
+	Priority priority;
+	ProcessID id;
 };
+
+
