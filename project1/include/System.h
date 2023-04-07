@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <array>
 #include <string>
+#include <ranges>
 
 constexpr uint32_t NUM_PROCESS = 16;
 constexpr uint32_t NUM_RESOURCE = 4;
@@ -27,16 +28,16 @@ namespace
 	}
 	auto inline toResourceIndex(std::string_view string)
 	{
-		try
-		{
+		//try
+		//{
 			const auto maybeUnsignedInt = std::stoi(string.data());
 			if (maybeUnsignedInt < 0 || maybeUnsignedInt >= NUM_RESOURCE) throw std::runtime_error{"Invalid resource index."};
 			return static_cast<ResourceIndex>(maybeUnsignedInt);
-		}
-		catch (...)
-		{
-			throw std::runtime_error{"Failed to convert string to int."};
-		}
+		//}
+		//catch (...)
+		//{
+		//	throw std::runtime_error{"Failed to convert string to int."};
+		//}
 	}
 	void inline checkArgumentSize(const std::vector<std::string>& arguments, size_t desiredSize)
 	{
@@ -51,48 +52,45 @@ class System // Singleton
 
 		void create(const std::vector<std::string>& arguments)
 		{
-			std::cout << "create() called\n";
 			checkArgumentSize(arguments, 0);
-			//processes.push_back(PCB{});
-			//readyList.push_back(PCB{});
-			//const auto numProcess = readyLists.size() + waitList.size() - 1;
-			//std::cout << "process " << numProcess << " created\n";
+			const auto processIndex = getNewProcessIndex();
+			setProcessReady(processIndex);
+			std::cout << "process " << std::to_string(processIndex) << " created\n";
 		}
 
 		void destroy(const std::vector<std::string>& arguments)
 		{
-			std::cout << "destroy() called\n";
 			checkArgumentSize(arguments, 1);
 			const auto processIndex = toProcessIndex(arguments.front());
 			// destroy process 0?
+			// destroy
+			//assert(processes[processIndex].childs.empty());
+			//assert(processes[processIndex].parent == std::numeric_limits<ProcessIndex>::max());
+			//assert(processes[processIndex].state == PCB::State::New);
 		}
 
 		void request(const std::vector<std::string>& arguments)
 		{
-			std::cout << "request() called\n";
 			checkArgumentSize(arguments, 1);
-			const auto processIndex = toResourceIndex(arguments.front());
+			const auto resourceIndex = toResourceIndex(arguments.front());
 
 		}
 
 		void release(const std::vector<std::string>& arguments)
 		{
-			std::cout << "release() called\n";
 			checkArgumentSize(arguments, 1);
-			const auto processIndex = toResourceIndex(arguments.front());
+			const auto resourceIndex = toResourceIndex(arguments.front());
 
 		}
 
 		void timeout(const std::vector<std::string>& arguments)
 		{
-			std::cout << "timeout() called\n";
 			checkArgumentSize(arguments, 0);
 
 		}
 
 		void init(const std::vector<std::string>& arguments)
 		{
-			std::cout << "init() called\n";
 			checkArgumentSize(arguments, 0);
 			//readyList.clear();
 			//readyList.push_back(PCB{});
@@ -112,12 +110,33 @@ class System // Singleton
 
 		static bool isInstantiated;
 
+		// For testing
+
+
 	private:
 		System() : processes{}, resources{}, readyList{}{};
 
 		inline ProcessIndex getRunningProcess()
 		{
 			return readyList.front();
+		}
+
+		inline ProcessIndex getNewProcessIndex()
+		{
+			const auto toState = [](const PCB& process)
+			{
+				return process.state;
+			};
+			const auto iterProcess = std::ranges::find(processes, PCB::State::New, toState);
+			if (iterProcess == processes.end()) throw std::runtime_error{"All of the processes are in used."};
+			else return std::distance(processes.begin(), iterProcess);
+		}
+
+		inline void setProcessReady(ProcessIndex processIndex)
+		{
+			assert(processes[processIndex].state == PCB::State::New);
+			processes[processIndex].state = PCB::State::Ready;
+			readyList.push(processIndex);
 		}
 
 		void scheduler()

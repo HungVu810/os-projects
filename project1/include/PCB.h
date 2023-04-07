@@ -12,11 +12,11 @@ struct RCB; // Forwarded declaration
 
 struct PCB // Process
 {
-	enum class State : uint8_t {Ready, Running, Blocked};
+	enum class State : uint8_t {New, Ready, Running, Blocked};
 
 	PCB() :
-	state{State::Ready}
-	, parent{std::numeric_limits<unsigned int>::max()}
+	state{State::New}
+	, parent{std::numeric_limits<ProcessIndex>::max()}
 	, childs{}
 	, resources{}
 	, priority{0}

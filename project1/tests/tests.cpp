@@ -26,8 +26,8 @@ namespace
 TEST_CASE("PCB instantiation")
 {
 	const auto pcb = PCB{};
-	REQUIRE(pcb.state == PCB::State::Ready);
-	REQUIRE(pcb.parent == -1);
+	REQUIRE(pcb.state == PCB::State::New);
+	REQUIRE(pcb.parent == std::numeric_limits<ProcessIndex>::max());
 	REQUIRE(pcb.childs.empty());
 	REQUIRE(pcb.resources.empty());
 	REQUIRE(pcb.priority >= 0); REQUIRE(pcb.priority <= 2);
@@ -53,7 +53,11 @@ TEST_CASE("System instantiation")
 }
 TEST_CASE("create() input")
 {
-	REQUIRE_NOTHROW(singleton::system.create({}));
+	for (int i = 0; i < NUM_PROCESS; i++) // Create max number of processes without destroy
+	{
+		REQUIRE_NOTHROW(singleton::system.create({}));
+	}
+	REQUIRE_THROWS(singleton::system.create({})); // Over limit
 
 	REQUIRE_THROWS(singleton::system.create({"x"}));
 	REQUIRE_THROWS(singleton::system.create({"$"}));
@@ -74,8 +78,15 @@ TEST_CASE("destroy() input")
 }
 TEST_CASE("request() input")
 {
-	REQUIRE_NOTHROW(singleton::system.request({"0"}));
-	REQUIRE_NOTHROW(singleton::system.request({std::to_string(NUM_RESOURCE - 1)}));
+	// requesting the same resource
+	// releashing the same resource
+	// destroy new process
+
+	for (int i = 0; i < NUM_RESOURCE; i++) // Create max number of resources without destroy
+	{
+		REQUIRE_NOTHROW(singleton::system.request({std::to_string(i)}));
+	}
+	REQUIRE_THROWS(singleton::system.request({std::to_string(NUM_RESOURCE)})); // Over limit
 
 	REQUIRE_THROWS(singleton::system.request({}));
 	REQUIRE_THROWS(singleton::system.request({"-1"}));
@@ -83,6 +94,36 @@ TEST_CASE("request() input")
 	REQUIRE_THROWS(singleton::system.request({"x"}));
 	REQUIRE_THROWS(singleton::system.request({"$"}));
 	REQUIRE_THROWS(singleton::system.request({"x $"}));
+}
+TEST_CASE("release() input")
+{
+	REQUIRE_NOTHROW(singleton::system.release({"0"}));
+	REQUIRE_NOTHROW(singleton::system.release({std::to_string(NUM_RESOURCE - 1)}));
+
+	REQUIRE_THROWS(singleton::system.release({}));
+	REQUIRE_THROWS(singleton::system.release({"-1"}));
+	REQUIRE_THROWS(singleton::system.release({std::to_string(NUM_RESOURCE)}));
+	REQUIRE_THROWS(singleton::system.release({"x"}));
+	REQUIRE_THROWS(singleton::system.release({"$"}));
+	REQUIRE_THROWS(singleton::system.release({"x $"}));
+}
+TEST_CASE("timeout() input")
+{
+	REQUIRE_NOTHROW(singleton::system.timeout({}));
+
+	REQUIRE_THROWS(singleton::system.timeout({"x"}));
+	REQUIRE_THROWS(singleton::system.timeout({"$"}));
+	REQUIRE_THROWS(singleton::system.timeout({"10"}));
+	REQUIRE_THROWS(singleton::system.timeout({"x $ 10"}));
+}
+TEST_CASE("init() input")
+{
+	REQUIRE_NOTHROW(singleton::system.init({}));
+
+	REQUIRE_THROWS(singleton::system.init({"x"}));
+	REQUIRE_THROWS(singleton::system.init({"$"}));
+	REQUIRE_THROWS(singleton::system.init({"10"}));
+	REQUIRE_THROWS(singleton::system.init({"x $ 10"}));
 }
 // ============ SYSTEM ============
 
