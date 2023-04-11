@@ -13,7 +13,7 @@
 
 namespace
 {
-	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap() noexcept
+	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap()
 	{
 		return {
 			{"cr", std::mem_fn(&System::create)}

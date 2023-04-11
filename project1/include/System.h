@@ -48,43 +48,84 @@ class System // Singleton
 			processes[freeProcess].parent = runningProcess;
 			processes[runningProcess].childs.push_back(freeProcess);
 			readyProcess(freeProcess);
-			std::cout << "process " << std::to_string(freeProcess) << " created\n";
+			std::cout << "process " << freeProcess << " created\n";
 		}
 
 		void destroy(const std::vector<std::string>& arguments)
 		{
 			checkArgumentSize(arguments, 1);
 			const auto process = toID<ProcessID>(arguments.front());
-			destroyProcess(process);
+			if (processes[process].state == PCB::State::Free) throw std::runtime_error{"Attempted to destroy a free process"};
+			std::cout << destroyProcess(process) << " processes destroyed\n"; // The process (+1) and its childs
 		}
 
 		void request(const std::vector<std::string>& arguments)
 		{
 			checkArgumentSize(arguments, 1);
-			const auto resourceIndex = toID<ResourceID>(arguments.front());
-
+			const auto resource = toID<ResourceID>(arguments.front());
+			auto& theResource = resources[resource];
+			const auto process = getRunningProcess();
+			auto& theProcess = processes[process];
+			const auto iterResource = std::ranges::find(theProcess.resources, resource);
+			if (iterResource != theProcess.resources.end()) throw std::runtime_error{"Running process already owns this resource."};
+			if (theResource.state == RCB::State::Free)
+			{
+				theResource.state = RCB::State::Allocated;
+				theProcess.resources.push_back(resource);
+				std::cout << "resource " << resource << " allocated\n";
+			}
+			else
+			{
+				theProcess.state = PCB::State::Blocked;
+				removeFromReadyList(process);
+				theResource.waitList.push_back(process);
+				std::cout << "process " << process << " blocked\n";
+				scheduler();
+			}
 		}
 
 		void release(const std::vector<std::string>& arguments)
 		{
 			checkArgumentSize(arguments, 1);
-			const auto resourceIndex = toID<ResourceID>(arguments.front());
-
+			const auto resource = toID<ResourceID>(arguments.front());
+			auto& theResource = resources[resource];
+			const auto process = getRunningProcess();
+			auto& theProcess = processes[process];
+			releashResource(theProcess, resource);
+			assert(theResource.state == RCB::State::Allocated); // Sanity check
+			if (theResource.waitList.empty()) theResource.state = RCB::State::Free;
+			else unBlockProcess(theResource);
+			std::cout << "resource " << resource << " released\n";
 		}
 
 		void timeout(const std::vector<std::string>& arguments)
 		{
 			checkArgumentSize(arguments, 0);
-
+			const auto& process = getRunningProcess();
+			readyList.erase(readyList.begin());
+			readyList.push_back(process);
+			scheduler();
 		}
 
 		void init(const std::vector<std::string>& arguments)
 		{
 			checkArgumentSize(arguments, 0);
-			//readyList.clear();
-			//waitList.clear();
-
-			// setProcessReady(0);
+			const auto resetProcess = [](PCB& process)
+			{
+				process.parent = std::nullopt;
+				process.childs.clear();
+				process.resources.clear();
+				process.state = PCB::State::Free;
+			};
+			std::ranges::for_each(processes, resetProcess);
+			const auto resetResource = [](RCB& resource)
+			{
+				resource.waitList.clear();
+				resource.state = RCB::State::Free;
+			};
+			std::ranges::for_each(resources, resetResource);
+			readyList.clear();
+			readyProcess(processes.front().id);
 		}
 
 		[[nodiscard]] static auto getInstance()
@@ -100,21 +141,20 @@ class System // Singleton
 		static bool isInstantiated;
 
 		// For testing
-		const auto getReadyList() const noexcept
+		const auto& getReadyList() const noexcept
 		{
 			return readyList;
 		}
 
-		const auto getProcesses() const noexcept
+		const auto& getProcesses() const noexcept
 		{
 			return processes;
 		}
 
-		const auto getResources() const noexcept
+		const auto& getResources() const noexcept
 		{
 			return resources;
 		}
-
 
 	private:
 		System()
@@ -129,8 +169,15 @@ class System // Singleton
 			readyProcess(processes.front().id);
 		};
 
+		void inline scheduler()
+		{
+			const auto process = getRunningProcess();
+			std::cout << "process " << process << " running\n";
+		}
+		 
 		[[nodiscard]] inline ProcessID getRunningProcess()
 		{
+			if (readyList.empty()) throw std::runtime_error{"None of the process is ready."};
 			return readyList.front();
 		}
 
@@ -143,30 +190,70 @@ class System // Singleton
 
 		inline void readyProcess(ProcessID process)
 		{
-			assert(processes[process].state == PCB::State::Free);
+			assert(processes[process].state != PCB::State::Ready);
 			processes[process].state = PCB::State::Ready;
 			readyList.push_back(process);
 		}
 
-		void destroyProcess(ProcessID process)
+		inline void releashResource(PCB& process, ResourceID resource)
 		{
-			auto& theProcess = processes[process];
-			if (theProcess.parent.has_value()) theProcess.parent = std::nullopt; // In case this is the process 0
-			for (ProcessID child : theProcess.childs) destroyProcess(child);
-			theProcess.childs.clear();
-			for (ResourceID resource : theProcess.resources)
-			{
-				auto& theResource = resources[resource];
-				const auto iterProcess = std::ranges::find(theResource.waitList, theProcess.id);
-				theResource.waitList.erase(iterProcess);
-			}
-			theProcess.resources.clear();
-			theProcess.state = PCB::State::Free;
+			const auto iterResource = std::ranges::find(process.resources, resource);
+			if (iterResource == process.resources.end()) throw std::runtime_error{"The current running process doesn't hold that resource"};
+			process.resources.erase(iterResource);
+		}
+		inline void unBlockProcess(RCB& resource)
+		{
+			const auto blockedProcess = resource.waitList.front();
+			resource.waitList.pop_front();
+			readyProcess(blockedProcess);
+			processes[blockedProcess].resources.push_back(resource.id);
 		}
 
-		void scheduler()
+		inline void removeParent(PCB& process, PCB& parent)
 		{
-
+			auto& parentChilds = parent.childs;
+			const auto iterChild = std::ranges::find(parentChilds, process.id);
+			assert(iterChild != parentChilds.end()); // Sanity check
+			parentChilds.erase(iterChild);
+			process.parent = std::nullopt; // Remove parent
+		}
+		inline uint32_t removeChilds(PCB& process)
+		{
+			auto childs = process.childs; // Make a copy. When destroy a child and disconnect it from this parent process via removeParent, the ranged loop will become UB
+			auto processDestroyed = uint32_t{0};
+			for (ProcessID child : childs)
+			{
+				processDestroyed += destroyProcess(child);
+			}
+			process.childs.clear();
+			return processDestroyed;
+		}
+		inline void removeResources(PCB& process)
+		{
+			for (ResourceID resource : process.resources) // Remove from the resources' waitlist
+			{
+				auto& theResource = resources[resource];
+				const auto iterProcess = std::ranges::find(theResource.waitList, process.id);
+				theResource.waitList.erase(iterProcess);
+			}
+			process.resources.clear();
+		}
+		inline void removeFromReadyList(ProcessID process)
+		{
+			const auto iterProcess = std::ranges::find(readyList, process);
+			assert(iterProcess != readyList.end());
+			readyList.erase(iterProcess);
+		}
+		[[nodiscardd]] uint32_t destroyProcess(ProcessID process) // Return the number of processes destroyed
+		{
+			auto& theProcess = processes[process];
+			auto processDestroyed = uint32_t{1}; // This process
+			if (theProcess.parent.has_value()) removeParent(theProcess, processes[theProcess.parent.value()]); // In case this is the process 0
+			processDestroyed += removeChilds(theProcess);
+			removeResources(theProcess);
+			removeFromReadyList(process);
+			theProcess.state = PCB::State::Free;
+			return processDestroyed;
 		}
 
 		std::array<PCB, ProcessID::MAX_EXCLUSIVE> processes;

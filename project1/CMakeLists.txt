@@ -13,7 +13,7 @@ target_compile_features(project1 PRIVATE cxx_std_20) # gcc version in ics enviro
 # Project tests
 add_executable(project1Tests ${TESTS})
 target_include_directories(project1Tests PRIVATE include)
-target_compile_features(project1Tests PRIVATE cxx_std_20)
+target_compile_features(project1Tests PRIVATE cxx_std_23)
 find_package(Catch2 CONFIG REQUIRED) # Dependency
 target_link_libraries(project1Tests PRIVATE Catch2::Catch2 Catch2::Catch2WithMain)
 enable_testing()

@@ -6,7 +6,7 @@
 
 struct PCB // Process
 {
-	enum class State : uint8_t {Free, Ready, Running, Blocked};
+	enum class State : uint8_t {Free, Ready, Blocked};
 
 	PCB() :
 	state{State::Free}

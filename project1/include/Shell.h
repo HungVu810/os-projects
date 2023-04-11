@@ -9,7 +9,7 @@ using CommandFunction = std::function<void(System&, std::vector<std::string>)>;
 
 namespace
 {
-	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap() noexcept; // Forwarded declaration
+	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap(); // Forwarded declaration
 }
 
 class Shell // Singleton
