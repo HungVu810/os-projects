@@ -6,9 +6,9 @@
 
 struct ProcessID
 {
-	ProcessID() = default;
+	constexpr ProcessID() : id{0}{}; // Show be -1
 
-	ProcessID(uint32_t i) : id{i}{};
+	constexpr ProcessID(uint32_t i) : id{i}{};
 
 	ProcessID& operator=(uint32_t inID)
 	{
@@ -25,9 +25,9 @@ struct ProcessID
 
 struct ResourceID
 {
-	ResourceID() = default;
+	constexpr ResourceID() : id{0}{}; // Show be -1
 
-	ResourceID(uint32_t i) : id{i}{};
+	constexpr ResourceID(uint32_t i) : id{i}{};
 
 	ResourceID& operator=(uint32_t inID)
 	{
@@ -42,8 +42,24 @@ struct ResourceID
 	static const uint32_t MAX_EXCLUSIVE = 4;
 };
 
-using Priority = uint8_t;
-constexpr uint32_t NUM_PRIORITY = 3;
+struct PriorityID
+{
+	constexpr PriorityID() : id{0}{}; // Show be -1
+
+	constexpr PriorityID(uint32_t i) : id{i}{};
+
+	PriorityID& operator=(uint32_t inID)
+	{
+		assert(inID >= 0 && inID < MAX_EXCLUSIVE);
+		id = inID;
+		return *this;
+	}
+
+	operator uint32_t() const noexcept {return id;}
+
+	uint32_t id;
+	static const uint32_t MAX_EXCLUSIVE = 3;
+};
 
 class OutputCapture // HAVE A singleton base class
 {
@@ -66,15 +82,9 @@ public:
 
 	std::string getOutput(uint32_t offset = 0) // Return the end line, or a line X offseted by "offset" from the end line
 	{
-		// auto output = localBuffer.str();
-		//output.pop_back(); // Remove the end \n
-		//const auto reverseIterChar = std::find(output.rbegin(), output.rend(), '\n');
-		//if (reverseIterChar == output.rend()) return output; // Output contains only one line
-		//return std::string(reverseIterChar.base(), output.end());
-
 		if (offset >= std::ranges::count(localBuffer.view(), '\n')) throw std::runtime_error{"offset has to be within [0, lines - 1]"};
 		auto lines = std::vector<std::string_view>{};
-		for (const auto line : localBuffer.view() | std::views::split('\n'))
+		for (const auto& line : localBuffer.view() | std::views::split('\n'))
 		{
 			lines.push_back(std::string_view(line.begin(), line.end()));
 		}
@@ -85,4 +95,5 @@ private:
 	std::ostringstream localBuffer;
 	std::streambuf* coutBuffer;
 };
+
 

@@ -2,6 +2,7 @@
 
 #include <list>
 #include <cassert>
+#include <array>
 
 struct RCB // Resource
 {
@@ -9,13 +10,15 @@ struct RCB // Resource
 
 	RCB() :
 	state{State::Free}
+	, id{0}
+	, remain{}
 	, waitList{}
-	, id{}
 	{}
 
 	~RCB(){};
 
 	State state;
-	std::list<ProcessID> waitList; // Blocked processes waiting for this resource
 	ResourceID id;
+	Units remain;
+	std::list<std::pair<ProcessID, Units>> waitList; // Blocked processes waiting for this resource
 };

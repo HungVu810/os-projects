@@ -5,11 +5,26 @@
 #include <cassert>
 #include <iostream>
 
-using CommandFunction = std::function<void(System&, std::vector<std::string>)>;
-
 namespace
 {
-	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap(); // Forwarded declaration
+	using CommandFunction = std::function<void(System&, std::vector<std::string>)>;
+
+	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap()
+	{
+		return {
+			{"cr", std::mem_fn(&System::create)}
+			, {"de", std::mem_fn(&System::destroy)}
+			, {"rq", std::mem_fn(&System::request)}
+			, {"rl", std::mem_fn(&System::release)}
+			, {"to", std::mem_fn(&System::timeout)}
+			, {"in", std::mem_fn(&System::init)}
+			//, {"pp", std::mem_fn(&System::printProcesses)}
+			//, {"pr", std::mem_fn(&System::printResources)}
+			//, {"ppi", std::mem_fn(&System::printProcess)}
+			//, {"pri", std::mem_fn(&System::printResource)}
+			//, {"pl", std::mem_fn(&System::printReadyList)}
+		};
+	}
 }
 
 class Shell // Singleton

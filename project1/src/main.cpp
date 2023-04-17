@@ -5,26 +5,19 @@
 #include <functional>
 #include <exception>
 
+//#ifdef _NDEBUG
+//	constexpr auto printExceptionMsg = true;
+//#else
+//	constexpr auto printExceptionMsg = false;
+//#endif
+
 #include "Predefined.h"
-#include "RCB.h"
 #include "PCB.h"
+#include "RCB.h"
 #include "System.h"
 #include "Shell.h"
 
-namespace
-{
-	[[nodiscard]] std::unordered_map<std::string, CommandFunction> getCommandMap()
-	{
-		return {
-			{"cr", std::mem_fn(&System::create)}
-			, {"de", std::mem_fn(&System::destroy)}
-			, {"rq", std::mem_fn(&System::request)}
-			, {"rl", std::mem_fn(&System::release)}
-			, {"to", std::mem_fn(&System::timeout)}
-			, {"in", std::mem_fn(&System::init)}
-		};
-	}
-}
+// when call destroy process i, i must be the running process or its child
 
 int main() // Accept arguments
 {
@@ -39,7 +32,9 @@ int main() // Accept arguments
 		}
 		catch (const std::runtime_error& error)
 		{
-			std::cout << "* error\n";
+			const auto prompt = std::string_view{"* error"};
+			//const auto prompt = std::string_view{error.what()};
+			std::cout << prompt << '\n';
 		}
 	}
 }
