@@ -4,12 +4,11 @@
 #include <unordered_map>
 #include <functional>
 #include <exception>
+#include <filesystem>
+#include <fstream>
 
-//#ifdef _NDEBUG
-//	constexpr auto printExceptionMsg = true;
-//#else
-//	constexpr auto printExceptionMsg = false;
-//#endif
+// https://slideplayer.com/slide/3334835/
+// g++ -std=c++20
 
 #include "Predefined.h"
 #include "PCB.h"
@@ -17,26 +16,17 @@
 #include "System.h"
 #include "Shell.h"
 
-// when call destroy process i, i must be the running process or its child
-
-int main() // Accept arguments
+int main(int argc, const char *const *const argv)
 {
 	auto system = System::getInstance();
 	auto shell = Shell::getInstance();
 
-	while (true)
-	{
-		try
-		{
-			shell.run(system);
-		}
-		catch (const std::runtime_error& error)
-		{
-			const auto prompt = std::string_view{"* error"};
-			//const auto prompt = std::string_view{error.what()};
-			std::cout << prompt << '\n';
-		}
-	}
+	auto arguments = std::vector<std::string_view>(argv, argv + argc);
+	// The first arguments is always the name of the program
+
+	if (arguments.size() > 2) throw std::runtime_error{"Only a file name or a path to a file contains input info is needed."};
+	else if (arguments.size() == 1) shell.run(system);
+	else shell.run(system, arguments[1]);
 }
 
 

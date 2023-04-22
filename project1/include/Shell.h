@@ -5,6 +5,12 @@
 #include <cassert>
 #include <iostream>
 
+//#ifdef _NDEBUG
+//	constexpr auto printExceptionMsg = true;
+//#else
+//	constexpr auto printExceptionMsg = false;
+//#endif
+
 namespace
 {
 	using CommandFunction = std::function<void(System&, std::vector<std::string>)>;
@@ -34,10 +40,53 @@ class Shell // Singleton
 
 		void run(System& system)
 		{
-			preRead();
-			auto command = readCommand();
-			auto tokens = parseCommand(command);
-			runCommand(tokens, system);
+			while (true)
+			{
+				try
+				{
+					preRead();
+					auto command = readCommand();
+					auto tokens = parseCommand(command);
+					runCommand(tokens, system);
+					std::cout << system.getRunningProcess() << '\n';
+				}
+				catch (const std::runtime_error& error)
+				{
+					// const auto prompt = std::string_view{"* error"};
+					const auto prompt = std::string_view{error.what()};
+					std::cout << prompt << '\n';
+				}
+			}
+		}
+
+		void run(System& system, std::string_view filePath)
+		{
+			const auto inputPath = std::filesystem::path{filePath};
+			auto inputFile = std::ifstream{inputPath};
+			if (!inputFile) throw std::runtime_error{"Invalid input file."};
+
+			auto outputFile = std::ofstream{inputPath.parent_path()/"output.txt"}; // Create an output file, std::fstream{path, std::ios::out};
+
+			auto command = std::string{};
+			while (std::getline(inputFile, command) || !inputFile.eof())
+			{
+				if (command.empty()) outputFile << '\n'; // Blank space seperating the input sequences
+				else
+				{
+					auto outputContent = std::stringstream{};
+					try
+					{
+						auto tokens = parseCommand(command);
+						runCommand(tokens, system);
+						outputContent << system.getRunningProcess();
+					}
+					catch (const std::runtime_error& error)
+					{
+						outputContent << -1;
+					}
+					outputFile << outputContent.str() << ' ';
+				}
+			}
 		}
 
 		[[nodiscard]] static auto getInstance()

@@ -8,6 +8,7 @@
 #include <string>
 #include <concepts>
 #include <ranges>
+#include <algorithm>
 #include <cmath>
 
 namespace
@@ -184,7 +185,7 @@ class System // Singleton
 
 		static bool isInstantiated;
 
-		// For testing
+		// For testing and convience
 		const auto& getReadyList() const noexcept
 		{
 			return readyList;
@@ -198,6 +199,16 @@ class System // Singleton
 		const auto& getResources() const noexcept
 		{
 			return resources;
+		}
+
+		[[nodiscard]] inline ProcessID getRunningProcess()
+		{
+			for (int level = PriorityID::MAX_EXCLUSIVE - 1; level >= 0; level--)
+			{
+				// Return the process at the highest priority level
+				if (!readyList[level].empty()) return readyList[level].front();
+			}
+			throw std::runtime_error{"None of the process is ready."};
 		}
 
 	private:
@@ -223,16 +234,6 @@ class System // Singleton
 			std::cout << "process " << process << " running\n";
 		}
 		 
-		[[nodiscard]] inline ProcessID getRunningProcess()
-		{
-			for (int level = PriorityID::MAX_EXCLUSIVE - 1; level >= 0; level--)
-			{
-				// Return the process at the highest priority level
-				if (!readyList[level].empty()) return readyList[level].front();
-			}
-			throw std::runtime_error{"None of the process is ready."};
-		}
-
 		[[nodiscard]] inline ProcessID getFreeProcess()
 		{
 			const auto iterProcess = std::ranges::find(processes, PCB::State::Free, &PCB::state);
@@ -349,7 +350,7 @@ class System // Singleton
 			}
 			assert(false); // Can't reach here because this mean the process isn't in the RL or the WL
 		}
-		[[nodiscardd]] uint32_t destroyProcess(ProcessID process) // Return the number of processes destroyed
+		[[nodiscard]] uint32_t destroyProcess(ProcessID process) // Return the number of processes destroyed
 		{
 			auto& theProcess = processes[process];
 			auto processDestroyed = uint32_t{1}; // This process

@@ -433,53 +433,21 @@ TEST_CASE("request()/release() with timeout")
 	// Sanity check
 	for (int i = 1; i < 8; i++) assert(processes[i].childs == std::vector<ProcessID>{i + 1}); // Process 8 is a leaf process for testing
 
-	//// Blocking process 6 and 7
-	//singleton::system.request({"2", "1"}); // Block 6
-	//singleton::system.request({"3", "1"}); // Block 7
-	//REQUIRE(processes[6].state == PCB::State::Blocked);
-	//REQUIRE(processes[7].state == PCB::State::Blocked);
-	//REQUIRE(resources[2].waitList == std::list{std::pair<ProcessID, Units>{6, 1}});
-	//REQUIRE(resources[3].waitList == std::list{std::pair<ProcessID, Units>{7, 1}});
-	//REQUIRE(outputCapture.getOutput(3) == "process 6 blocked");
-	//REQUIRE(outputCapture.getOutput(2) == "process 7 running");
-	//REQUIRE(outputCapture.getOutput(1) == "process 7 blocked");
-	//REQUIRE(outputCapture.getOutput() == "process 5 running");
-	//REQUIRE(readyList[2].empty());
+	// Switch to and block process 8
+	singleton::system.timeout({});
+	singleton::system.timeout({});
+	singleton::system.request({"3", "1"}); // Block 8
+	REQUIRE(processes[8].state == PCB::State::Blocked);
+	REQUIRE(resources[3].waitList == std::list{std::pair<ProcessID, Units>{8, 1}});
+	REQUIRE(outputCapture.getOutput(1) == "process 8 blocked");
+	REQUIRE(outputCapture.getOutput() == "process 7 running");
 
-	//// Release process 5 resource 3 with 1 unit, process 7 unblocked and owns resource 3 with 1 unit
-	//singleton::system.release({"3", "1"});
-	//REQUIRE(outputCapture.getOutput() == "process 7 running");
-	//REQUIRE(processes[7].state == PCB::State::Ready);
-	//REQUIRE(resources[3].waitList.empty());
-
-	//REQUIRE(readyList == std::list<ProcessID>{0, 1, 2, 3}); // Sanity check
-
-	//// Unblock 4, 5, 6, 7 and owns 0, 1, 2, 3
-	//for (int i = 0; i < ResourceID::MAX_EXCLUSIVE; i++)
-	//{
-	//	singleton::system.release({std::to_string(i)});
-	//	REQUIRE(processes[i].resources.empty());
-	//	REQUIRE(resources[i].waitList.empty());
-	//	REQUIRE(resources[i].state == RCB::State::Allocated);
-	//	REQUIRE(readyList.back() == i + min);
-	//	REQUIRE(processes[i + min].state == PCB::State::Ready);
-	//	REQUIRE(processes[i + min].resources[0] == i);
-	//	REQUIRE(outputCapture.getOutput() == "resource " + std::to_string(i) + " released");
-	//	singleton::system.timeout({}); // Context switch
-	//}
-
-	//REQUIRE(readyList == std::list<ProcessID>{4, 0, 5, 1, 6, 2, 7, 3}); // Sanity check
-
-	//// Free resource 0, 1, 2, 3 from 4, 5, 6, 7
-	//for (int i = min; i < max; i++)
-	//{
-	//	const auto resourceID = i - min;
-	//	singleton::system.release({std::to_string(resourceID)});
-	//	REQUIRE(resources[resourceID].state == RCB::State::Free);
-	//	REQUIRE_THROWS(singleton::system.release({std::to_string(resourceID)})); // Release the same resource check
-	//	singleton::system.timeout({});
-	//	singleton::system.timeout({});
-	//}
+	// Process 7 releases resource 3 with 1 unit, process 8 unblocked and owns resource 3 with 1 unit
+	singleton::system.release({"3", "1"});
+	REQUIRE_THROWS(singleton::system.release({"3", "1"})); // Release the same resource check
+	REQUIRE(processes[8].state == PCB::State::Ready);
+	REQUIRE(resources[3].waitList.empty());
+	REQUIRE(readyList[2] == std::list<ProcessID>{7, 6, 8});
 }
 // ADVANCE ============
 

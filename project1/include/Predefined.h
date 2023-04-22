@@ -2,7 +2,6 @@
 #include <cassert>
 #include <sstream>
 #include <iostream>
-#include <ranges>
 
 struct ProcessID
 {
@@ -61,6 +60,9 @@ struct PriorityID
 	static const uint32_t MAX_EXCLUSIVE = 3;
 };
 
+#ifdef CATCH_CONFIG_MAIN
+#include <ranges>
+#include <algorithm>
 class OutputCapture // HAVE A singleton base class
 {
 public:
@@ -95,5 +97,6 @@ private:
 	std::ostringstream localBuffer;
 	std::streambuf* coutBuffer;
 };
+#endif
 
 
