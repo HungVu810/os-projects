@@ -550,6 +550,102 @@ TEST_CASE("Shell instantiation")
 // ============ SHELL ============
 
 
+// ############## TODO ##################
+// Accumulated request from the same process -> accumulate into one pair {resource, }
+
+//process 0 request {3, 1} then do the same thing again -> eror? accumulate into one release or multiple release?
+//	
+//• number of units requested + number already held <= initial inventory ==> error
+//• number of units released <= number of units currently held ==> error
+//	
+//TODO: Delete process must release any resource that it held
+//TODO: timeout the only running process? timeout the only highest level running process and there are a lots of lower level processes?
+//TODO: test fraction within boundary (2.5) for create, release and request priority/id
+//	
+//Functions must implement checks to detect illegal/unexpected operations
+//• Examples:
+//• Creating more than n processes
+//• Destroying a process that is not a child of the current process
+//• Requesting a nonexistent resource
+//• Requesting a resource the process is already holding
+//• Releasing a resource the process is not holding
+//• Process 0 should be prevented from requesting any resource to avoid 
+//deadlock where no process is on the RL
+//• In each case, the corresponding function should display “error” (e.g. -1
+//
+//
+//Test case
+//	cr 0
+//	to
+//	rq 3 3
+//	cr 1
+//	rq 3 2
+//	rl 3 1
+//	rl 3 1 --> error buts it not
+//
+//Test case
+//	> cr 0
+//	process 1 created
+//	process 0 running
+//	> to
+//	process 1 running
+//	> rq 3 3
+//	3 units of resource 3 allocated
+//	> cr 1
+//	process 2 created
+//	process 2 running
+//	> cr 1
+//	process 3 created
+//	process 2 running
+//	> cr 1
+//	process 4 created
+//	process 2 running
+//	> rq 3 1
+//	process 2 blocked
+//	process 3 running
+//	> rq 3 1
+//	process 3 blocked
+//	process 4 running
+//	> rq 3 1
+//	process 4 blocked
+//	process 1 running
+//	> rl 3 3
+//	3 units of resource 3 released
+//	process 2 running
+//	> to
+//	process 3 running
+//	> to
+//	process 4 running
+//	> to
+//	process 2 running
+//	>
+//
+//Repete the above test case with delete process 1
+//
+//TESt case destroy blocked process
+//	rq 3 3
+//	cr 1
+//	to
+//	rq 3 1
+//	de 1
+//
+//test case destroy a process with blocked childs
+//	rq 3 3
+//	cr 1
+//	cr 1
+//	cr 1
+//	cr 1
+//	to
+//	rq 3 1
+//	rq 3 1
+//	rq 3 1
+//	de 1
+//
+//
+//// TODO: release a unit of the resource 3 only, so its state shouln't be free when the waitlist is empty?
+//// TODO: or force a complete release of the resource and the number of units must match the number of owned units?
+//
+//https://slideplayer.com/slide/3334835/
 
 
 

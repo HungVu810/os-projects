@@ -70,6 +70,7 @@ class Shell // Singleton
 			auto command = std::string{};
 			while (std::getline(inputFile, command) || !inputFile.eof())
 			{
+				if (command.size() == 1 && command.back() == '\r') command.pop_back(); // Linux only, command.empty() == true if the this line is empty. Windows doesn't have '\r'
 				if (command.empty()) outputFile << '\n'; // Blank space seperating the input sequences
 				else
 				{
@@ -87,6 +88,7 @@ class Shell // Singleton
 					outputFile << outputContent.str() << ' ';
 				}
 			}
+			outputFile << std::endl;
 		}
 
 		[[nodiscard]] static auto getInstance()
