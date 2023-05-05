@@ -2,12 +2,16 @@
 #include <cassert>
 #include <sstream>
 #include <iostream>
+#include <cassert>
 
 struct ProcessID
 {
-	constexpr ProcessID() : id{0}{}; // Show be -1
+	constexpr ProcessID() : id{0}{};
 
-	constexpr ProcessID(uint32_t i) : id{i}{};
+	constexpr ProcessID(uint32_t inID) : id{inID}
+	{
+		assert(inID >= 0 && inID < MAX_EXCLUSIVE);
+	};
 
 	ProcessID& operator=(uint32_t inID)
 	{
@@ -24,9 +28,12 @@ struct ProcessID
 
 struct ResourceID
 {
-	constexpr ResourceID() : id{0}{}; // Show be -1
+	constexpr ResourceID() : id{0}{};
 
-	constexpr ResourceID(uint32_t i) : id{i}{};
+	constexpr ResourceID(uint32_t inID) : id{inID}
+	{
+		assert(inID >= 0 && inID < MAX_EXCLUSIVE);
+	};
 
 	ResourceID& operator=(uint32_t inID)
 	{
@@ -43,9 +50,12 @@ struct ResourceID
 
 struct PriorityID
 {
-	constexpr PriorityID() : id{0}{}; // Show be -1
+	constexpr PriorityID() : id{0}{};
 
-	constexpr PriorityID(uint32_t i) : id{i}{};
+	constexpr PriorityID(uint32_t inID) : id{inID}
+	{
+		assert(inID >= 0 && inID < MAX_EXCLUSIVE);
+	};
 
 	PriorityID& operator=(uint32_t inID)
 	{

@@ -64,6 +64,7 @@ class System // Singleton
 		{
 			checkArgumentSize(arguments, 1);
 			const auto process = toID<ProcessID>(arguments.front());
+			if (process == 0) throw std::runtime_error{"Can't destroy process 0."}; // There should never be an empty ready list-- process 0 cannot be deleted, blocked, etc.
 			const auto runningProcess = getRunningProcess();
 			const auto& runningProcessChilds = processes[runningProcess].childs;
 			const auto isChild = std::ranges::find(runningProcessChilds, process) != runningProcessChilds.end();
@@ -71,7 +72,7 @@ class System // Singleton
 			{
 				assert(processes[process].state != PCB::State::Free);
 				std::cout << destroyProcess(process) << " processes destroyed\n";
-				if (process != 0) scheduler(); // Process 0 is destroyed == all others are destroyed
+				scheduler();
 			}
 			else throw std::runtime_error{"Specified process is not the running process or a child of such process."};
 		}
@@ -84,24 +85,29 @@ class System // Singleton
 			auto& theResource = resources[resource];
 
 			const auto units = toUnits(resource, arguments[1]);
-			if (units == 0) throw std::runtime_error{"Attempted to release 0 units"};
+			if (units == 0) throw std::runtime_error{"Attempted to request 0 units"};
 
 			const auto process = getRunningProcess();
 			if (process == 0) throw std::runtime_error{"Attempted to requesting resource for process 0 which can causes deadlock"};
 			auto& theProcess = processes[process];
 
+			if (theResource.state == RCB::State::Free) theResource.state = RCB::State::Allocated;
 			const auto toResourceID = [](const auto& pair)
 			{
 				const auto& [resourceID, units] = pair;
 				return resourceID;
 			};
 			const auto iterPair = std::ranges::find(theProcess.resources, resource, toResourceID);
-			if (iterPair != theProcess.resources.end()) throw std::runtime_error{"Running process already owns this resource."};
+			if (iterPair != theProcess.resources.end() && iterPair->second == unitMap[resource]) throw std::runtime_error{"All ready own maximum number of units of this resource"};
 
 			if (theResource.remain >= units)
 			{
-				if (theResource.state == RCB::State::Free) theResource.state = RCB::State::Allocated;
-				ownResource(theProcess, resource, units);
+				if (iterPair == theProcess.resources.end()) ownResource(theProcess, resource, units); // First time owning this resource
+				else // Accumulate the amount of units owns
+				{
+					iterPair->second += units;
+					resources[resource].remain -= units;
+				}
 				std::cout << units << " units of resource " << resource << " allocated\n";
 			}
 			else

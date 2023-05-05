@@ -68,13 +68,20 @@ class Shell // Singleton
 			auto outputFile = std::ofstream{inputPath.parent_path()/"output.txt"}; // Create an output file, std::fstream{path, std::ios::out};
 
 			auto command = std::string{};
+			bool shouldPrintSpace = false;
 			while (std::getline(inputFile, command) || !inputFile.eof())
 			{
 				if (command.size() == 1 && command.back() == '\r') command.pop_back(); // Linux only, command.empty() == true if the this line is empty. Windows doesn't have '\r'
-				if (command.empty()) outputFile << '\n'; // Blank space seperating the input sequences
+				if (command.empty())
+				{
+					outputFile << '\n'; // Blank space seperating the input sequences
+					shouldPrintSpace = false; // Reset for the next sequence of commands
+				}
 				else
 				{
 					auto outputContent = std::stringstream{};
+					if (!shouldPrintSpace) shouldPrintSpace = true; // Skip the first command in this sequence
+					else outputContent << " ";
 					try
 					{
 						auto tokens = parseCommand(command);
@@ -85,7 +92,7 @@ class Shell // Singleton
 					{
 						outputContent << -1;
 					}
-					outputFile << outputContent.str() << ' ';
+					outputFile << outputContent.str();
 				}
 			}
 			outputFile << std::endl;
