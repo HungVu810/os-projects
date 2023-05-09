@@ -1,6 +1,4 @@
-//#include <iostream>
 #include <MemoryManager.h>
-#include <vector>
 
 int main(int argc, const char *const *const argv)
 {

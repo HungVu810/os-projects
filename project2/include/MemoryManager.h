@@ -5,13 +5,16 @@
 #include <array>
 #include <vector>
 #include <optional>
+#include <variant>
+#include <cassert>
 
 class MemoryManager
 {
 public:
 	MemoryManager() :
-		physicalMemory(1024 * 512) // 1024 frames, each frame has 512 words
-		, disk(512, std::vector<uint32_t>(1024))
+		physicalMemory(1024 * 512, int{-1}) // 1024 frames, each frame has 512 words
+		, disk(1024, std::vector<uint32_t>(512)) // 1024 blocks, each block has 512 words
+		, freeFrames(1024, true) // 1024 free blocks in the disk
 	{}
 
     void init(std::filesystem::path initFilePath)
@@ -51,13 +54,13 @@ private:
 	{
 		uint32_t number;
 		uint32_t size;
-		uint32_t frame; // Residing location
+		std::variant<uint32_t, int> frame; // Residing location, uint32_t if on physical memory, int negative if on disk
 	};
 	struct PageInfo
 	{
 		uint32_t segment; // Owner
 		uint32_t number;
-		uint32_t frame; // Residing location
+		std::variant<uint32_t, int> frame; // Residing location, uint32_t if on physical memory, int negative if on disk
 	};
 	struct TranslateInfo
 	{
@@ -68,35 +71,78 @@ private:
 		uint32_t va; // Original virtual address
 	};
 
+	inline auto getSegmentSizeLocation(uint32_t segmentNumber)
+	{
+		return 2ull * segmentNumber;
+	}
+	inline auto getSegmentFrameLocation(uint32_t segmentNumber)
+	{
+		return 2ull * segmentNumber + 1ull;
+	}
+	inline auto getPageFrameLocation(uint32_t segmentNumber, uint32_t pageNumber)
+	{
+		return std::get<uint32_t>(physicalMemory[getSegmentFrameLocation(segmentNumber)]) * 512ull + pageNumber;
+	}
+	inline auto getWordLocation(uint32_t segmentNumber, uint32_t pageNumber, uint32_t wordOffset)
+	{
+		return std::get<uint32_t>(physicalMemory[getPageFrameLocation(segmentNumber, pageNumber)]) * 512ull + wordOffset;
+	}
+
 	void initPhysicalMemory(const std::vector<SegmentInfo>& segmentInfos, const std::vector<PageInfo>& pageInfos)
 	{
 		for (const auto& segmentInfo : segmentInfos)
 		{
-			physicalMemory[2ull * segmentInfo.number] = segmentInfo.size; // PM[2s] = segmentSize
-			physicalMemory[2ull * segmentInfo.number + 1ull] = segmentInfo.frame; // PM[2s + 1] = segmentFrame
+			physicalMemory[getSegmentSizeLocation(segmentInfo.number)] = segmentInfo.size; // PM[2s] = segmentSize
+			physicalMemory[getSegmentFrameLocation(segmentInfo.number)] = segmentInfo.frame; // PM[2s + 1] = segmentFrame
 		}
-
 		for (const auto& pageInfo : pageInfos)
 		{
-			physicalMemory[physicalMemory[2ull * pageInfo.segment + 1ull] * 512ull + pageInfo.number] = pageInfo.frame; // PM[PM[2s + 1] * 512 + p] = w
+			physicalMemory[getPageFrameLocation(pageInfo.segment, pageInfo.number)] = pageInfo.frame; // PM[PM[2s + 1] * 512 + p] = w
 		}
 	}
 
 	std::optional<uint32_t> getPhysicalAddress(const TranslateInfo& va)
 	{
-		if (va.pw >= physicalMemory[2ull * va.s]) return std::nullopt;
-		return static_cast<uint32_t>(physicalMemory[physicalMemory[2ull * va.s + 1ull] * 512ull + va.p] * 512ull + va.w);
+		if (va.pw >= std::get<uint32_t>(physicalMemory[getSegmentSizeLocation(va.s)])) return std::nullopt;
 
-		// PA = PM[PM[2s+1]*512+p]*512+w, check for page fault
-		// s: 9 bit, p: 9 bit, w:; 9 bit, present bit: 1 bit
-		// The sign bit is used as the present bit (negative = not resident
+		// Only frames/pages are either valid (uint32_t) or not valid (negative int)
+		auto segmentFrame = std::get_if<uint32_t>(&physicalMemory[getSegmentFrameLocation(va.s)]);
+		if (segmentFrame == nullptr)
+		{
+			const auto segmentBlock = std::abs(std::get<int>(physicalMemory[getSegmentFrameLocation(va.s)]));
+			assert(freeFrames[segmentBlock]);
+			freeFrames[segmentBlock] = false;
+			readBlock(segmentBlock, getSegmentFrameLocation(va.s));
+			//• Allocate free frame f1 using list of free frames
+			//• Update list of free frames
+			//• Read disk block b = |PM[2s + 1]| into PM staring at location f1*512
+			//• PM[2s + 1] = f1
+		}
+		//const auto pageFrame = std::get_if<uint32_t>(&physicalMemory[physicalMemory[2ull * va.s + 1ull] * 512ull + va.p]);
+		const auto pageFrame = std::get_if<uint32_t>(&physicalMemory[getPageFrameLocation(va.s, va.p)]);
+		if (pageFrame == nullptr)
+		{
+			const auto pageBlock = std::abs(std::get<int>(physicalMemory[getPageFrameLocation(va.s, va.p)]));
+			assert(freeFrames[pageBlock]);
+			freeFrames[pageBlock] = false;
+			readBlock(pageBlock, getPageFrameLocation(va.s, va.p));
+			//• Allocate free frame f2 using list of free frames
+			//• Update list of free frames
+			//• Read disk block b = |PM[PM[2s + 1]*512 + p]| into PM staring at f2*512
+			//• PM[PM[2s + 1]*512 + p] = f2
+		}
+		return static_cast<uint32_t>(getWordLocation(va.s, va.p, va.w));
 
-		//uint32_t address // user input
-		//std::numeric_limit<uint32_t>()
-		//
-		//[s, p, w] = char* addressBytes[sizeof(uint32_t)] divided among s(sz (7), frame# to p (7) -> p (9) -> w within page (9)
-		//
-		//
+		//// PA = PM[PM[2s+1]*512+p]*512+w, check for page fault
+		//// s: 9 bit, p: 9 bit, w:; 9 bit, present bit: 1 bit
+		//// The sign bit is used as the present bit (negative = not resident
+
+		////uint32_t address // user input
+		////std::numeric_limit<uint32_t>()
+		////
+		////[s, p, w] = char* addressBytes[sizeof(uint32_t)] divided among s(sz (7), frame# to p (7) -> p (9) -> w within page (9)
+		////
+		////
 	}
 
 	TranslateInfo translateVirtualAddress(uint32_t va)
@@ -109,6 +155,14 @@ private:
 			, va & 0x3FFF // pw
 			, va // va
 		};
+	}
+
+	void readBlock(uint32_t b, uint32_t m) // Copy block b from disk to a frame at address m into the physical memory
+	{
+		for (int i = 0; i < disk[b].size(); i++)
+		{
+			physicalMemory[m + i] = disk[b][i];
+		}
 	}
 
 	[[nodiscard]] std::vector<std::string> tokenizeCommand(std::string_view command)
@@ -130,17 +184,19 @@ private:
 		auto infos = std::vector<Info>(tokenizedCommand.size() / 3);
 		for (size_t i = 0; i < infos.size(); i++)
 		{
+			const auto residingLoc = std::stol(tokenizedCommand[i * 3 + 2].data());
 			infos[i] = Info{
 				std::stoul(tokenizedCommand[i * 3].data())
 				, std::stoul(tokenizedCommand[i * 3 + 1].data())
-				, std::stoul(tokenizedCommand[i * 3 + 2].data())
+				, residingLoc < 0 ? static_cast<int>(residingLoc) : static_cast<uint32_t>(residingLoc)
 			};
 		}
 		return infos;
 	}
 
-	std::vector<uint32_t> physicalMemory; // Use a lot of stack memory, using the heap instead
+	std::vector<std::variant<uint32_t, int>> physicalMemory; // Use a lot of stack memory, using the heap instead
 	std::vector<std::vector<uint32_t>> disk; // Use a lot of stack memory, using the heap instead
+	std::vector<bool> freeFrames;
 };
 
 
