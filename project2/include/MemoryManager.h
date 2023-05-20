@@ -5,16 +5,17 @@
 #include <array>
 #include <vector>
 #include <optional>
-#include <variant>
 #include <cassert>
+#include <algorithm>
+#include <iterator>
 
 class MemoryManager
 {
 public:
 	MemoryManager() :
-		physicalMemory(1024 * 512, int{-1}) // 1024 frames, each frame has 512 words
-		, disk(1024, std::vector<uint32_t>(512)) // 1024 blocks, each block has 512 words
-		, freeFrames(1024, true) // 1024 free blocks in the disk
+		physicalMemory(1024 * 512, -1) // 1024 frames, each frame has 512 words
+		, disk(1024, std::vector<int>(512, -1)) // 1024 blocks, each block has 512 words
+		, freeFrames(1024, true) // Keep track of the free frames in the physical memory, assuming that a free frame is always available
 	{}
 
     void init(std::filesystem::path initFilePath)
@@ -52,15 +53,15 @@ public:
 private:
 	struct SegmentInfo // A segment at 'frame' owns multiples pages. The pages are resided at different frame and may/may not be contiguous to one another
 	{
-		uint32_t number;
-		uint32_t size;
-		std::variant<uint32_t, int> frame; // Residing location, uint32_t if on physical memory, int negative if on disk
+		uint32_t number; // Segment number index
+		uint32_t size; // Size of the segment in term of word
+		int frame; // Residing location, positive if on physical memory, negative if on disk
 	};
 	struct PageInfo
 	{
 		uint32_t segment; // Owner
-		uint32_t number;
-		std::variant<uint32_t, int> frame; // Residing location, uint32_t if on physical memory, int negative if on disk
+		uint32_t number; // Page number index
+		int frame; // Residing location, positive if on physical memory, negative if on disk
 	};
 	struct TranslateInfo
 	{
@@ -73,19 +74,29 @@ private:
 
 	inline auto getSegmentSizeLocation(uint32_t segmentNumber)
 	{
-		return 2ull * segmentNumber;
+		return 2 * segmentNumber;
 	}
 	inline auto getSegmentFrameLocation(uint32_t segmentNumber)
 	{
-		return 2ull * segmentNumber + 1ull;
+		return 2 * segmentNumber + 1;
 	}
 	inline auto getPageFrameLocation(uint32_t segmentNumber, uint32_t pageNumber)
 	{
-		return std::get<uint32_t>(physicalMemory[getSegmentFrameLocation(segmentNumber)]) * 512ull + pageNumber;
+		return physicalMemory[getSegmentFrameLocation(segmentNumber)] * 512 + static_cast<int>(pageNumber); // Can be negative
 	}
 	inline auto getWordLocation(uint32_t segmentNumber, uint32_t pageNumber, uint32_t wordOffset)
 	{
-		return std::get<uint32_t>(physicalMemory[getPageFrameLocation(segmentNumber, pageNumber)]) * 512ull + wordOffset;
+		const auto pageFrameLocation = getPageFrameLocation(segmentNumber, pageNumber);
+		assert(pageFrameLocation > 0); // Must be updated with a valid page frame location when used in getPhysicalAddress
+		return physicalMemory[pageFrameLocation] * 512 + wordOffset;
+	}
+
+	inline auto allocateFreeFrameLocation()
+	{
+		const auto frameIter = std::ranges::find(freeFrames, true);
+		assert(frameIter != freeFrames.end()); // Failed assumption
+		*frameIter = false;
+		return std::distance(freeFrames.begin(), frameIter);
 	}
 
 	void initPhysicalMemory(const std::vector<SegmentInfo>& segmentInfos, const std::vector<PageInfo>& pageInfos)
@@ -94,38 +105,42 @@ private:
 		{
 			physicalMemory[getSegmentSizeLocation(segmentInfo.number)] = segmentInfo.size; // PM[2s] = segmentSize
 			physicalMemory[getSegmentFrameLocation(segmentInfo.number)] = segmentInfo.frame; // PM[2s + 1] = segmentFrame
+			if (segmentInfo.frame >= 0) freeFrames[segmentInfo.frame] = false;
 		}
 		for (const auto& pageInfo : pageInfos)
 		{
-			physicalMemory[getPageFrameLocation(pageInfo.segment, pageInfo.number)] = pageInfo.frame; // PM[PM[2s + 1] * 512 + p] = w
+			const auto pageFrameLocation = getPageFrameLocation(pageInfo.segment, pageInfo.number);
+			if (pageFrameLocation < 0) disk[std::abs(pageFrameLocation) / 512][std::abs(pageFrameLocation) % 512] = pageInfo.frame;
+			else physicalMemory[pageFrameLocation] = pageInfo.frame;
+
+			freeFrames[pageInfo.number] = false;
+			if (pageInfo.frame >= 0) freeFrames[pageInfo.frame] = false;
 		}
 	}
 
 	std::optional<uint32_t> getPhysicalAddress(const TranslateInfo& va)
 	{
-		if (va.pw >= std::get<uint32_t>(physicalMemory[getSegmentSizeLocation(va.s)])) return std::nullopt;
+		if (va.pw >= physicalMemory[getSegmentSizeLocation(va.s)]) return std::nullopt;
 
 		// Only frames/pages are either valid (uint32_t) or not valid (negative int)
-		auto segmentFrame = std::get_if<uint32_t>(&physicalMemory[getSegmentFrameLocation(va.s)]);
-		if (segmentFrame == nullptr)
+		if (physicalMemory[getSegmentFrameLocation(va.s)] < 0)
 		{
-			const auto segmentBlock = std::abs(std::get<int>(physicalMemory[getSegmentFrameLocation(va.s)]));
-			assert(freeFrames[segmentBlock]);
-			freeFrames[segmentBlock] = false;
-			readBlock(segmentBlock, getSegmentFrameLocation(va.s));
+			const auto segmentBlock = std::abs(physicalMemory[getSegmentFrameLocation(va.s)]);
+			const auto freeFrameLocation = allocateFreeFrameLocation();
+			readBlock(segmentBlock, freeFrameLocation);
+			physicalMemory[getSegmentFrameLocation(va.s)] = freeFrameLocation;
 			//• Allocate free frame f1 using list of free frames
 			//• Update list of free frames
 			//• Read disk block b = |PM[2s + 1]| into PM staring at location f1*512
 			//• PM[2s + 1] = f1
 		}
 		//const auto pageFrame = std::get_if<uint32_t>(&physicalMemory[physicalMemory[2ull * va.s + 1ull] * 512ull + va.p]);
-		const auto pageFrame = std::get_if<uint32_t>(&physicalMemory[getPageFrameLocation(va.s, va.p)]);
-		if (pageFrame == nullptr)
+		if (physicalMemory[getPageFrameLocation(va.s, va.p)] < 0)
 		{
-			const auto pageBlock = std::abs(std::get<int>(physicalMemory[getPageFrameLocation(va.s, va.p)]));
-			assert(freeFrames[pageBlock]);
-			freeFrames[pageBlock] = false;
-			readBlock(pageBlock, getPageFrameLocation(va.s, va.p));
+			const auto pageBlock = std::abs(physicalMemory[getPageFrameLocation(va.s, va.p)]);
+			const auto freeFrameLocation = allocateFreeFrameLocation();
+			readBlock(pageBlock, freeFrameLocation);
+			physicalMemory[getPageFrameLocation(va.s, va.p)] = freeFrameLocation;
 			//• Allocate free frame f2 using list of free frames
 			//• Update list of free frames
 			//• Read disk block b = |PM[PM[2s + 1]*512 + p]| into PM staring at f2*512
@@ -133,16 +148,9 @@ private:
 		}
 		return static_cast<uint32_t>(getWordLocation(va.s, va.p, va.w));
 
-		//// PA = PM[PM[2s+1]*512+p]*512+w, check for page fault
-		//// s: 9 bit, p: 9 bit, w:; 9 bit, present bit: 1 bit
-		//// The sign bit is used as the present bit (negative = not resident
-
-		////uint32_t address // user input
-		////std::numeric_limit<uint32_t>()
-		////
-		////[s, p, w] = char* addressBytes[sizeof(uint32_t)] divided among s(sz (7), frame# to p (7) -> p (9) -> w within page (9)
-		////
-		////
+		// PA = PM[PM[2s+1]*512+p]*512+w, check for page fault
+		// s: 9 bit, p: 9 bit, w:; 9 bit, present bit: 1 bit
+		// The sign bit is used as the present bit (negative = not resident
 	}
 
 	TranslateInfo translateVirtualAddress(uint32_t va)
@@ -161,7 +169,7 @@ private:
 	{
 		for (int i = 0; i < disk[b].size(); i++)
 		{
-			physicalMemory[m + i] = disk[b][i];
+			physicalMemory[m * 512 + i] = disk[b][i];
 		}
 	}
 
@@ -184,18 +192,18 @@ private:
 		auto infos = std::vector<Info>(tokenizedCommand.size() / 3);
 		for (size_t i = 0; i < infos.size(); i++)
 		{
-			const auto residingLoc = std::stol(tokenizedCommand[i * 3 + 2].data());
+			const auto residingFrame = std::stol(tokenizedCommand[i * 3 + 2].data());
 			infos[i] = Info{
 				std::stoul(tokenizedCommand[i * 3].data())
 				, std::stoul(tokenizedCommand[i * 3 + 1].data())
-				, residingLoc < 0 ? static_cast<int>(residingLoc) : static_cast<uint32_t>(residingLoc)
+				, static_cast<int>(residingFrame)
 			};
 		}
 		return infos;
 	}
 
-	std::vector<std::variant<uint32_t, int>> physicalMemory; // Use a lot of stack memory, using the heap instead
-	std::vector<std::vector<uint32_t>> disk; // Use a lot of stack memory, using the heap instead
+	std::vector<int> physicalMemory; // Use a lot of stack memory, using the heap instead
+	std::vector<std::vector<int>> disk; // Use a lot of stack memory, using the heap instead
 	std::vector<bool> freeFrames;
 };
 
