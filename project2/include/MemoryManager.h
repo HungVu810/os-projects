@@ -9,6 +9,9 @@
 #include <algorithm>
 #include <iterator>
 
+// The starting location of a segment's PT = physicalMemory[getSegmentFrameLocation(segmentNumber)] * 512
+// The starting location of a segment's page = physicalMemory[getWordLocation(segmentNumber, pageNumber, 0)]
+
 class MemoryManager
 {
 public:
@@ -45,7 +48,7 @@ public:
 				const auto vaTranslateInfo = translateVirtualAddress(std::stoul(vaString));
 				const auto pa = getPhysicalAddress(vaTranslateInfo);
 				if (pa.has_value()) outputFile << pa.value() << " ";
-				else outputFile << -1;
+				else outputFile << -1 << " ";
 			}
 		}
 	}
@@ -71,7 +74,7 @@ private:
 		uint32_t pw;
 		uint32_t va; // Original virtual address
 	};
-
+ 
 	inline auto getSegmentSizeLocation(uint32_t segmentNumber)
 	{
 		return 2 * segmentNumber;
@@ -80,15 +83,16 @@ private:
 	{
 		return 2 * segmentNumber + 1;
 	}
-	inline auto getPageFrameLocation(uint32_t segmentNumber, uint32_t pageNumber)
+	inline auto getPageFrameLocation(uint32_t segmentNumber, uint32_t pageNumber) // The location to a segment's pages within a PT
 	{
-		return physicalMemory[getSegmentFrameLocation(segmentNumber)] * 512 + static_cast<int>(pageNumber); // Can be negative
+		const auto segmentFrameLocation = physicalMemory[getSegmentFrameLocation(segmentNumber)];
+		return segmentFrameLocation * 512 + (segmentFrameLocation < 0 ? -1 : 1) * static_cast<int>(pageNumber); // Can be negative
 	}
-	inline auto getWordLocation(uint32_t segmentNumber, uint32_t pageNumber, uint32_t wordOffset)
+	inline auto getWordLocation(uint32_t segmentNumber, uint32_t pageNumber, uint32_t wordOffset) // The location to a segment's words within a page within a PT
 	{
 		const auto pageFrameLocation = getPageFrameLocation(segmentNumber, pageNumber);
 		assert(pageFrameLocation > 0); // Must be updated with a valid page frame location when used in getPhysicalAddress
-		return physicalMemory[pageFrameLocation] * 512 + wordOffset;
+		return physicalMemory[pageFrameLocation] * 512 + wordOffset; // wordOffset [0, 511], PT of pageNumber occupied locations 
 	}
 
 	inline auto allocateFreeFrameLocation()
@@ -109,7 +113,7 @@ private:
 		}
 		for (const auto& pageInfo : pageInfos)
 		{
-			const auto pageFrameLocation = getPageFrameLocation(pageInfo.segment, pageInfo.number);
+			const auto pageFrameLocation = getPageFrameLocation(pageInfo.segment, pageInfo.number); // PT
 			if (pageFrameLocation < 0) disk[std::abs(pageFrameLocation) / 512][std::abs(pageFrameLocation) % 512] = pageInfo.frame;
 			else physicalMemory[pageFrameLocation] = pageInfo.frame;
 
