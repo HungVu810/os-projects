@@ -45,7 +45,7 @@ public:
 			const auto vaStrings = tokenizeCommand(command);
 			for (const auto& vaString : vaStrings)
 			{
-				const auto vaTranslateInfo = translateVirtualAddress(std::stoul(vaString));
+				const auto vaTranslateInfo = translateVirtualAddress(static_cast<uint32_t>(std::stoul(vaString)));
 				const auto pa = getPhysicalAddress(vaTranslateInfo);
 				if (pa.has_value()) outputFile << pa.value() << " ";
 				else outputFile << -1 << " ";
@@ -133,10 +133,10 @@ private:
 			const auto freeFrameLocation = allocateFreeFrameLocation();
 			readBlock(segmentBlock, freeFrameLocation);
 			physicalMemory[getSegmentFrameLocation(va.s)] = freeFrameLocation;
-			//• Allocate free frame f1 using list of free frames
-			//• Update list of free frames
-			//• Read disk block b = |PM[2s + 1]| into PM staring at location f1*512
-			//• PM[2s + 1] = f1
+			//Allocate free frame f1 using list of free frames
+			//Update list of free frames
+			//Read disk block b = |PM[2s + 1]| into PM staring at location f1*512
+			//PM[2s + 1] = f1
 		}
 		//const auto pageFrame = std::get_if<uint32_t>(&physicalMemory[physicalMemory[2ull * va.s + 1ull] * 512ull + va.p]);
 		if (physicalMemory[getPageFrameLocation(va.s, va.p)] < 0)
@@ -145,10 +145,10 @@ private:
 			const auto freeFrameLocation = allocateFreeFrameLocation();
 			readBlock(pageBlock, freeFrameLocation);
 			physicalMemory[getPageFrameLocation(va.s, va.p)] = freeFrameLocation;
-			//• Allocate free frame f2 using list of free frames
-			//• Update list of free frames
-			//• Read disk block b = |PM[PM[2s + 1]*512 + p]| into PM staring at f2*512
-			//• PM[PM[2s + 1]*512 + p] = f2
+			//Allocate free frame f2 using list of free frames
+			//Update list of free frames
+			//Read disk block b = |PM[PM[2s + 1]*512 + p]| into PM staring at f2*512
+			//PM[PM[2s + 1]*512 + p] = f2
 		}
 		return static_cast<uint32_t>(getWordLocation(va.s, va.p, va.w));
 
@@ -164,7 +164,7 @@ private:
 			va >> 18 // s
 			, va & 0x1FF // w
 			, (va >> 9) & 0x1FF // p
-			, va & 0x3FFF // pw
+			, va & 0x3FFFF // pw
 			, va // va
 		};
 	}
@@ -198,8 +198,8 @@ private:
 		{
 			const auto residingFrame = std::stol(tokenizedCommand[i * 3 + 2].data());
 			infos[i] = Info{
-				std::stoul(tokenizedCommand[i * 3].data())
-				, std::stoul(tokenizedCommand[i * 3 + 1].data())
+				static_cast<uint32_t>(std::stoul(tokenizedCommand[i * 3].data()))
+				, static_cast<uint32_t>(std::stoul(tokenizedCommand[i * 3 + 1].data()))
 				, static_cast<int>(residingFrame)
 			};
 		}
