@@ -14,9 +14,11 @@
 namespace
 {
 	template<typename T>
-	concept TypeID = std::same_as<T, ProcessID>
+	concept TypeID = requires{
+		std::same_as<T, ProcessID>
 		|| std::same_as<T, ResourceID>
 		|| std::same_as<T, PriorityID>;
+	};
 
 	template<TypeID T>
 	inline auto toID(std::string_view string)
